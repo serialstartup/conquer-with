@@ -9,7 +9,7 @@ export default function JoinRoom() {
   const router = useRouter();
 
   async function handleJoin() {
-    if (code.trim().length < 4) return;
+    if (code.trim().length !== 6) return;
     const roomId = await joinRoom(code.trim());
     if (roomId) router.replace(`/room/${roomId}`);
   }
@@ -39,7 +39,7 @@ export default function JoinRoom() {
       <TouchableOpacity
         className="bg-blue-600 rounded-xl py-4 items-center"
         onPress={handleJoin}
-        disabled={loading || code.trim().length < 4}
+        disabled={loading || code.trim().length !== 6}
       >
         {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-lg font-bold">Katıl</Text>}
       </TouchableOpacity>

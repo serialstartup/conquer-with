@@ -3,7 +3,12 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 
 function generateRoomCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ambiguous chars çıkarıldı (0,O,1,I)
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
 }
 
 export function useRoom() {

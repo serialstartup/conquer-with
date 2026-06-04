@@ -70,45 +70,84 @@ export default function WaitingRoom() {
   }
 
   async function startGame() {
-    if (!room || !user) return;
+    if (!room || !user || starting) return;
     setStarting(true);
     try {
-      // Her oyuncuya rastgele benzersiz başlangıç ili ata
-      const totalProvinces = 81;
-      const availableIds = Array.from({ length: totalProvinces }, (_, i) => i);
-      const shuffled = availableIds.sort(() => Math.random() - 0.5);
+      // Conditional update: sadece waiting olan odayı starting yap
+      const { data: updated, error: updateError } = await supabase
+        .from("rooms")
+        .update({ status: "starting" })
+        .eq("id", room.id)
+        .eq("status", "waiting")
+        .select("id")
+        .maybeSingle();
 
-      // room_players'a main_province_id ata
-      for (let i = 0; i < players.length; i++) {
+      if (updateError || !updated) {
+        // Başka bir host zaten başlattı veya oda artık waiting değil
+        setStarting(false);
+        return;
+      }
+
+      // Fresh players listesi al
+      const { data: freshPlayers } = await supabase
+        .from("room_players")
+        .select("id, seat, player_id")
+        .eq("room_id", room.id)
+        .order("seat");
+
+      if (!freshPlayers || freshPlayers.length < 2) {
+        await supabase.from("rooms").update({ status: "waiting" }).eq("id", room.id);
+        setStarting(false);
+        return;
+      }
+
+      // Rastgele il ataması
+      const availableIds = Array.from({ length: 81 }, (_, i) => i).sort(() => Math.random() - 0.5);
+
+      for (let i = 0; i < freshPlayers.length; i++) {
         await supabase
           .from("room_players")
-          .update({ main_province_id: shuffled[i] })
-          .eq("id", players[i].id);
+          .update({ main_province_id: availableIds[i] })
+          .eq("id", freshPlayers[i].id);
       }
 
-      // Başlangıç provinces state'i oluştur (81 il, sadece ana kaleler dolu)
+      // Başlangıç provinces oluştur
       const provinces: Record<string, { owner_id: string | null; soldiers: number; castle_level: number }> = {};
-      for (let i = 0; i < totalProvinces; i++) {
+      for (let i = 0; i < 81; i++) {
         provinces[String(i)] = { owner_id: null, soldiers: 0, castle_level: 0 };
       }
-      for (let i = 0; i < players.length; i++) {
-        const provinceId = String(shuffled[i]);
-        provinces[provinceId] = { owner_id: players[i].player_id, soldiers: 3, castle_level: 1 };
+      for (let i = 0; i < freshPlayers.length; i++) {
+        provinces[String(availableIds[i])] = {
+          owner_id: freshPlayers[i].player_id,
+          soldiers: 3,
+          castle_level: 1,
+        };
       }
 
-      // game_states oluştur
-      await supabase.from("game_states").insert({
+      // game_states insert — room_id UNIQUE constraint var, çakışma olursa error döner
+      const { error: gsError } = await supabase.from("game_states").insert({
         room_id: room.id,
-        current_turn: players[0].player_id,
+        current_turn: freshPlayers[0].player_id,
         provinces,
         phase: "playing",
         started_at: new Date().toISOString(),
       });
 
-      // Odayı 'playing' yap
+      if (gsError) {
+        // game_states zaten var — unique constraint ihlali
+        await supabase.from("rooms").update({ status: "playing" }).eq("id", room.id);
+        router.replace(`/game/${room.id}`);
+        return;
+      }
+
+      // Odayı playing yap
       await supabase.from("rooms").update({ status: "playing" }).eq("id", room.id);
+      // Realtime event tüm oyuncuları yönlendirecek, ama fallback olarak host'u da yönlendir
+      router.replace(`/game/${room.id}`);
     } catch (e) {
       Alert.alert("Hata", "Oyun başlatılamadı");
+      // Odayı waiting'e geri al
+      await supabase.from("rooms").update({ status: "waiting" }).eq("id", room.id);
       setStarting(false);
     }
   }
