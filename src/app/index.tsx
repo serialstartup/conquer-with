@@ -37,8 +37,13 @@ export default function HomeScreen() {
           onPress={async () => {
             if (!usernameInput.trim()) return;
             setSaving(true);
-            await setUsername(usernameInput.trim());
-            setSaving(false);
+            try {
+              await setUsername(usernameInput.trim());
+            } catch {
+              // Hata olursa saving false'a döner, kullanıcı tekrar deneyebilir
+            } finally {
+              setSaving(false);
+            }
           }}
           disabled={saving || !usernameInput.trim()}
         >

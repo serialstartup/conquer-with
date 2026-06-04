@@ -2,15 +2,22 @@ import "../global.css";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const auth = useAuthProvider();
+
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (!auth.loading) {
+      SplashScreen.hideAsync();
+    }
+  }, [auth.loading]);
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0f172a" } }} />
+    <AuthContext.Provider value={auth}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0f172a" } }} />
+    </AuthContext.Provider>
   );
 }

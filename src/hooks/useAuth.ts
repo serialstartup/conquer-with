@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
@@ -8,67 +8,101 @@ type Profile = {
   is_guest: boolean;
 };
 
+type AuthContextValue = {
+  user: User | null;
+  profile: Profile | null;
+  loading: boolean;
+  setUsername: (username: string) => Promise<void>;
+};
+
+export const AuthContext = createContext<AuthContextValue>({
+  user: null,
+  profile: null,
+  loading: true,
+  setUsername: async () => {},
+});
+
 export function useAuth() {
+  return useContext(AuthContext);
+}
+
+export function useAuthProvider(): AuthContextValue {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    initAuth();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
+    let isMounted = true;
 
-  async function initAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      setUser(session.user);
-      await loadProfile(session.user.id);
-    } else {
-      const { data } = await supabase.auth.signInAnonymously();
-      if (data.user) {
-        setUser(data.user);
-        await loadProfile(data.user.id);
+    async function initAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        if (session?.user) {
+          setUser(session.user);
+          await loadProfile(session.user.id, isMounted);
+        } else {
+          const { data, error } = await supabase.auth.signInAnonymously();
+          if (!isMounted) return;
+          if (error) throw error;
+          if (data.user) {
+            setUser(data.user);
+            await loadProfile(data.user.id, isMounted);
+          }
+        }
+      } catch (e) {
+        console.error("[useAuth] initAuth error:", e);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     }
-    setLoading(false);
-  }
 
-  async function loadProfile(userId: string) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (data) {
-      setProfile(data);
+    async function loadProfile(userId: string, mounted: boolean) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, is_guest")
+        .eq("id", userId)
+        .maybeSingle();
+      if (mounted && data) setProfile(data);
     }
-  }
 
-  async function createProfile(userId: string, username: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert({ id: userId, username, is_guest: true })
-      .select()
-      .single();
-    if (data) setProfile(data);
-    return { data, error };
-  }
+    initAuth();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (isMounted) setUser(session?.user ?? null);
+    });
+
+    return () => {
+      isMounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   async function setUsername(username: string) {
     if (!user) return;
-    if (profile) {
-      const { data } = await supabase
-        .from("profiles")
-        .update({ username })
-        .eq("id", user.id)
-        .select()
-        .single();
-      if (data) setProfile(data);
-    } else {
-      await createProfile(user.id, username);
+    try {
+      if (profile) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .update({ username })
+          .eq("id", user.id)
+          .select("id, username, is_guest")
+          .single();
+        if (error) throw error;
+        setProfile(data);
+      } else {
+        const { data, error } = await supabase
+          .from("profiles")
+          .insert({ id: user.id, username, is_guest: true })
+          .select("id, username, is_guest")
+          .single();
+        if (error) throw error;
+        setProfile(data);
+      }
+    } catch (e) {
+      console.error("[useAuth] setUsername error:", e);
+      throw e;
     }
   }
 
