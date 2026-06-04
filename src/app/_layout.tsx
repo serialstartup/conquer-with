@@ -10,5 +10,7 @@ export default function RootLayout() {
     SplashScreen.hideAsync();
   }, []);
 
-  return <Stack />;
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0f172a" } }} />
+  );
 }
