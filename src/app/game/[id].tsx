@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameState } from "@/hooks/useGameState";
+import { useGameTimer } from "@/hooks/useGameTimer";
 import { ProvinceGrid } from "@/components/ProvinceGrid";
 import { QuestionCard } from "@/components/QuestionCard";
 import { PlayerStatus } from "@/components/PlayerStatus";
@@ -30,14 +31,32 @@ export default function GameScreen() {
   const router = useRouter();
   const { gameState, loading, updateGameState } = useGameState(roomId!);
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(20);
   const [selectedProvince, setSelectedProvince] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [actionType, setActionType] = useState<ActionType>(null);
   const [showQuestion, setShowQuestion] = useState(false);
 
+  const { secondsLeft, expired, formatTime } = useGameTimer(
+    gameState?.started_at ?? null,
+    timeLimitMinutes
+  );
+
   useEffect(() => {
     loadPlayers();
+    loadRoom();
   }, [roomId]);
+
+  // Süre dolduğunda oyunu bitir
+  useEffect(() => {
+    if (expired && gameState?.phase === "playing") {
+      supabase
+        .from("game_states")
+        .update({ phase: "finished" })
+        .eq("room_id", roomId)
+        .then(() => router.replace(`/results/${roomId}`));
+    }
+  }, [expired]);
 
   // Ana kale düşüp düşmediğini kontrol et
   useEffect(() => {
@@ -52,6 +71,15 @@ export default function GameScreen() {
       }
     }
   }, [gameState?.provinces]);
+
+  async function loadRoom() {
+    const { data } = await supabase
+      .from("rooms")
+      .select("time_limit_minutes")
+      .eq("id", roomId)
+      .single();
+    if (data) setTimeLimitMinutes(data.time_limit_minutes);
+  }
 
   async function loadPlayers() {
     const { data } = await supabase
@@ -151,6 +179,11 @@ export default function GameScreen() {
         <Text className="text-slate-400 text-xs text-center">
           {isMyTurn ? "Sıra sende — bir il seç" : `${currentPlayer?.profiles?.username ?? "?"} oynuyor...`}
         </Text>
+        {secondsLeft !== null && (
+          <Text className={`text-sm font-bold text-center ${secondsLeft <= 60 ? "text-red-400" : "text-slate-400"}`}>
+            ⏱ {formatTime(secondsLeft)}
+          </Text>
+        )}
       </View>
 
       {/* Oyuncu durumu */}
