@@ -42,6 +42,7 @@ export type Room = {
   host_id: string;
   status: RoomStatus;
   time_limit_minutes: number;
+  max_players: 2 | 3 | 4;
 };
 
 export type GameState = {
