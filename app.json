@@ -3,7 +3,7 @@
     "name": "conquer-with",
     "slug": "conquer-with",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": "conquerwith",
     "userInterfaceStyle": "automatic",

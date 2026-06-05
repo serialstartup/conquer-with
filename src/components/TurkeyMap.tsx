@@ -16,7 +16,7 @@ const VIEWBOX_W = 800;
 const VIEWBOX_H = 480;
 const PLAYER_COLORS = ['#2563EB', '#DC2626', '#16A34A', '#CA8A04'];
 const EMPTY_COLOR = '#334155';
-const EMPTY_STROKE = '#475569';
+const BORDER_COLOR = '#FFFFFF';
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 const ICON_ZOOM_THRESHOLD = 1.8;
@@ -155,11 +155,9 @@ export function TurkeyMap({
                   <Path
                     d={data.path}
                     fill={fill}
-                    stroke={castlePlayer
-                      ? PLAYER_COLORS[(castlePlayer.seat - 1) % PLAYER_COLORS.length]
-                      : EMPTY_STROKE}
-                    strokeWidth={castlePlayer ? 2 : 0.5}
-                    strokeOpacity={castlePlayer ? 0.9 : 0.5}
+                    stroke={BORDER_COLOR}
+                    strokeWidth={castlePlayer ? 2.5 : 1}
+                    strokeOpacity={castlePlayer ? 1 : 0.7}
                     onPress={() => {
                       if (!disabled && isMyTurn) onProvincePress(province.id);
                     }}
