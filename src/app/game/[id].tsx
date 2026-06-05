@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameState } from "@/hooks/useGameState";
 import { useGameTimer } from "@/hooks/useGameTimer";
-import { ProvinceGrid } from "@/components/ProvinceGrid";
+import { TurkeyMap } from "@/components/TurkeyMap";
 import { QuestionCard } from "@/components/QuestionCard";
 import { PlayerStatus } from "@/components/PlayerStatus";
 import provinces from "@/data/provinces.json";
@@ -196,11 +196,11 @@ export default function GameScreen() {
 
       {/* İl grid */}
       <View className="flex-1">
-        <ProvinceGrid
+        <TurkeyMap
           provinces={gameState.provinces}
           provinceData={provinceData}
-          players={players.map((p) => ({ id: p.player_id, seat: p.seat, main_province_id: p.main_province_id }))}
-          currentUserId={user?.id ?? ""}
+          players={players.map(p => ({ id: p.player_id, seat: p.seat, main_province_id: p.main_province_id }))}
+          currentUserId={user?.id ?? ''}
           currentTurnId={gameState.current_turn}
           onProvincePress={handleProvincePress}
           disabled={showQuestion}
