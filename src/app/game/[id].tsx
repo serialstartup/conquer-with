@@ -208,7 +208,7 @@ export default function GameScreen() {
       </View>
 
       {/* Soru modal */}
-      <Modal visible={showQuestion} transparent animationType="slide">
+      <Modal visible={showQuestion} transparent animationType="slide" supportedOrientations={["landscape", "landscape-left", "landscape-right"]}>
         <View className="flex-1 justify-end bg-black/60">
           <View className="bg-slate-900 rounded-t-3xl pt-4 pb-8">
             <View className="w-12 h-1 bg-slate-600 rounded-full mx-auto mb-4" />
