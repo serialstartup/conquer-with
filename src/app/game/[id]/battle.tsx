@@ -46,6 +46,7 @@ export default function BattleScreen() {
   const [attackerAnim, setAttackerAnim] = useState<SpriteAnim>("idle");
   const [defenderAnim, setDefenderAnim] = useState<SpriteAnim>("idle");
   const initialDefenderSoldiers = useRef<number>(1);
+  const finishedRef = useRef(false);
 
   const provinceId = parseInt(provinceParam ?? "0", 10);
   const provinceInfo = provinceData.find((p) => p.id === provinceId);
@@ -67,12 +68,28 @@ export default function BattleScreen() {
           const event = payload.new as { event_type: string; payload: Record<string, unknown> };
           if (event.event_type === "battle_state_update") {
             const incoming = event.payload as BattleState;
-            if (incoming.provinceId === provinceId) {
-              if (!initialDefenderSoldiers.current || initialDefenderSoldiers.current === 1) {
-                initialDefenderSoldiers.current = incoming.defenderSoldiers;
+            if (incoming.provinceId !== provinceId) return;
+            if (!initialDefenderSoldiers.current || initialDefenderSoldiers.current === 1) {
+              initialDefenderSoldiers.current = incoming.defenderSoldiers;
+            }
+            setBattleState(incoming);
+            setLoadingBattle(false);
+
+            // Pasif oyuncu (bu eventi yayınlamayan taraf) için bitiş işlemi
+            if (incoming.phase === "finished" && !finishedRef.current) {
+              finishedRef.current = true;
+              if (incoming.winnerId === incoming.attackerId) {
+                setDefenderAnim("death");
+                setResultMessage(
+                  user?.id === incoming.attackerId ? "Zafer! İl fethedildi!" : "İl kaybedildi..."
+                );
+              } else {
+                setAttackerAnim("death");
+                setResultMessage(
+                  user?.id === incoming.defenderId ? "Savunma başarılı! İl korundu." : "Saldırı başarısız oldu."
+                );
               }
-              setBattleState(incoming);
-              setLoadingBattle(false);
+              setTimeout(() => { router.back(); }, 2000);
             }
           }
         }
@@ -215,6 +232,7 @@ export default function BattleScreen() {
   async function finishBattle(state: BattleState) {
     const gs = gsRef.current;
     if (!gs) return;
+    finishedRef.current = true;
 
     const updatedProvinces = { ...gs.provinces };
 
