@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { View, Text, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
@@ -47,13 +47,18 @@ export default function BattleScreen() {
   const [attackerAnim, setAttackerAnim] = useState<SpriteAnim>("idle");
   const [defenderAnim, setDefenderAnim] = useState<SpriteAnim>("idle");
   const initialDefenderSoldiers = useRef<number>(1);
+  const battleInitialized = useRef(false);
 
   const provinceId = parseInt(provinceParam ?? "0", 10);
   const provinceInfo = provinceData.find((p) => p.id === provinceId);
 
+  // gameState dependency: initialize savaşı ancak gameState yüklendiğinde yap.
+  // Stale closure'u önlemek için gameState'i parametre olarak geç.
   useEffect(() => {
-    loadPlayersAndInit();
-  }, [roomId]);
+    if (!gameState || battleInitialized.current) return;
+    battleInitialized.current = true;
+    loadPlayersAndInit(gameState);
+  }, [gameState, roomId]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -73,21 +78,23 @@ export default function BattleScreen() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, provinceId]);
 
-  async function loadPlayersAndInit() {
+  async function loadPlayersAndInit(gs: typeof gameState) {
+    if (!gs) return;
+
     const { data } = await supabase
       .from("room_players")
       .select("player_id, seat, main_province_id, profiles(username)")
       .eq("room_id", roomId)
       .order("seat");
 
-    if (!data || !gameState) {
+    if (!data) {
       setLoadingBattle(false);
       return;
     }
     setPlayers(data as unknown as RoomPlayer[]);
 
-    const attackerId = gameState.current_turn;
-    const defenderState = gameState.provinces[String(provinceId)];
+    const attackerId = gs.current_turn;
+    const defenderState = gs.provinces[String(provinceId)];
     const defenderId = defenderState?.owner_id ?? "";
     const defenderSoldiers = defenderState?.soldiers ?? 1;
 

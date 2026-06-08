@@ -44,12 +44,13 @@ export function CrusaderSprite({ animation, flipped = false, size = 120, onCompl
   }, [animation]);
 
   const frames = crusaderSprites[animation];
+  const safeIndex = Math.min(frameIndex, frames.length - 1);
   const aspectRatio = 299 / 240;
 
   return (
     <View style={{ transform: flipped ? [{ scaleX: -1 }] : undefined }}>
       <Image
-        source={frames[frameIndex]}
+        source={frames[safeIndex]}
         style={{ width: size, height: size / aspectRatio }}
         resizeMode="contain"
       />
