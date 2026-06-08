@@ -47,6 +47,29 @@ export default function GameScreen() {
     loadRoom();
   }, [roomId]);
 
+  // battle_start eventi: savunan oyuncu savaş ekranına yönlendirilir
+  useEffect(() => {
+    if (!user) return;
+    const channelName = `battle-notify:${roomId}:${Math.random().toString(36).slice(2)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "game_events", filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const event = payload.new as { event_type: string; payload: Record<string, unknown> };
+          if (event.event_type === "battle_start") {
+            const { provinceId: pId, defenderId } = event.payload as { provinceId: number; defenderId: string };
+            if (user.id === defenderId) {
+              router.push(`/game/${roomId}/battle?province=${pId}`);
+            }
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [roomId, user?.id]);
+
   // Süre dolduğunda oyunu bitir
   useEffect(() => {
     if (expired && gameState?.phase === "playing") {
