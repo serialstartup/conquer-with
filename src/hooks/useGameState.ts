@@ -21,8 +21,9 @@ export function useGameState(roomId: string) {
 
     load();
 
+    const channelName = `game:${roomId}:${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(`game:${roomId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "game_states", filter: `room_id=eq.${roomId}` },
