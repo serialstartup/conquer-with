@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { useGameState } from "@/hooks/useGameState";
 import { QuestionCard } from "@/components/QuestionCard";
+import { CrusaderSprite } from "@/components/CrusaderSprite";
 import questions from "@/data/questions.json";
 import provinces from "@/data/provinces.json";
 import type { Question, Province } from "@/types/game";
@@ -18,8 +19,8 @@ type BattleState = {
   attackerId: string;
   defenderId: string;
   provinceId: number;
-  attackerSoldiers: number; // saldıran başlangıçta 3 hakkı var
-  defenderSoldiers: number; // savunanın mevcut askerleri
+  attackerSoldiers: number;
+  defenderSoldiers: number;
   phase: BattlePhase;
   winnerId: string | null;
 };
@@ -31,6 +32,8 @@ type RoomPlayer = {
   profiles: { username: string } | null;
 };
 
+type SpriteAnim = "idle" | "attack" | "gotHit" | "death";
+
 export default function BattleScreen() {
   const { id: roomId, province: provinceParam } = useLocalSearchParams<{ id: string; province: string }>();
   const { user } = useAuth();
@@ -41,7 +44,9 @@ export default function BattleScreen() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [loadingBattle, setLoadingBattle] = useState(true);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const [attackerAnim, setAttackerAnim] = useState<SpriteAnim>("idle");
+  const [defenderAnim, setDefenderAnim] = useState<SpriteAnim>("idle");
+  const initialDefenderSoldiers = useRef<number>(1);
 
   const provinceId = parseInt(provinceParam ?? "0", 10);
   const provinceInfo = provinceData.find((p) => p.id === provinceId);
@@ -50,7 +55,6 @@ export default function BattleScreen() {
     loadPlayersAndInit();
   }, [roomId]);
 
-  // Realtime: battle_events dinle
   useEffect(() => {
     if (!roomId) return;
     const channel = supabase
@@ -66,9 +70,7 @@ export default function BattleScreen() {
         }
       )
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [roomId, provinceId]);
 
   async function loadPlayersAndInit() {
@@ -84,11 +86,12 @@ export default function BattleScreen() {
     }
     setPlayers(data as unknown as RoomPlayer[]);
 
-    // Savaş durumu oluştur (ilk kez)
     const attackerId = gameState.current_turn;
     const defenderState = gameState.provinces[String(provinceId)];
     const defenderId = defenderState?.owner_id ?? "";
     const defenderSoldiers = defenderState?.soldiers ?? 1;
+
+    initialDefenderSoldiers.current = defenderSoldiers;
 
     const initial: BattleState = {
       attackerId,
@@ -102,7 +105,6 @@ export default function BattleScreen() {
 
     setBattleState(initial);
     await publishBattleState(initial);
-    setInitialized(true);
     setLoadingBattle(false);
   }
 
@@ -137,22 +139,27 @@ export default function BattleScreen() {
     if (battleState.phase === "attacker_turn") {
       if (correct) {
         updated.defenderSoldiers -= 1;
+        setAttackerAnim("attack");
+        setDefenderAnim("gotHit");
       }
       updated.phase = "defender_turn";
     } else {
       if (correct) {
         updated.attackerSoldiers -= 1;
+        setDefenderAnim("attack");
+        setAttackerAnim("gotHit");
       }
       updated.phase = "attacker_turn";
     }
 
-    // Savaş bitiş kontrolü
     if (updated.defenderSoldiers <= 0) {
       updated.phase = "finished";
       updated.winnerId = updated.attackerId;
+      setDefenderAnim("death");
     } else if (updated.attackerSoldiers <= 0) {
       updated.phase = "finished";
       updated.winnerId = updated.defenderId;
+      setAttackerAnim("death");
     }
 
     setBattleState(updated);
@@ -168,7 +175,6 @@ export default function BattleScreen() {
     const updatedProvinces = { ...gameState.provinces };
 
     if (state.winnerId === state.attackerId) {
-      // Saldıran kazandı — il geçti
       updatedProvinces[String(state.provinceId)] = {
         owner_id: state.attackerId,
         soldiers: 1,
@@ -176,7 +182,6 @@ export default function BattleScreen() {
       };
       setResultMessage("Zafer! İl fethedildi!");
     } else {
-      // Savunan kazandı — il kaldı
       updatedProvinces[String(state.provinceId)] = {
         ...gameState.provinces[String(state.provinceId)],
         soldiers: Math.max(1, state.defenderSoldiers),
@@ -184,17 +189,13 @@ export default function BattleScreen() {
       setResultMessage("Savunma başarılı! İl korundu.");
     }
 
-    // Sırayı bir sonraki oyuncuya geç
     const currentIndex = players.findIndex((p) => p.player_id === gameState.current_turn);
     const nextIndex = (currentIndex + 1) % players.length;
     const nextTurn = players[nextIndex]?.player_id ?? gameState.current_turn;
 
     await updateGameState({ provinces: updatedProvinces, current_turn: nextTurn });
 
-    // 1.5 saniye sonra oyun ekranına dön
-    setTimeout(() => {
-      router.replace(`/game/${roomId}`);
-    }, 1500);
+    setTimeout(() => { router.replace(`/game/${roomId}`); }, 2000);
   }
 
   if (loadingBattle || !battleState) {
@@ -216,53 +217,74 @@ export default function BattleScreen() {
   return (
     <View className="flex-1 bg-slate-900">
       {/* Başlık */}
-      <View className="pt-12 px-4 pb-4 border-b border-slate-800">
-        <Text className="text-white text-xl font-bold text-center">
-          {provinceInfo?.name ?? "Savaş"} — Muharebe
+      <View className="pt-8 px-4 pb-3 border-b border-slate-700">
+        <Text className="text-amber-400 text-lg font-bold text-center tracking-widest uppercase">
+          ⚔ {provinceInfo?.name ?? "Muharebe"} Savaşı ⚔
         </Text>
       </View>
 
-      {/* Savaş durumu */}
-      <View className="flex-row px-4 py-4 gap-3">
-        <View
-          className={`flex-1 rounded-xl p-3 ${
-            battleState.phase === "attacker_turn"
-              ? "bg-blue-700 border-2 border-blue-300"
-              : "bg-slate-800"
-          }`}
-        >
-          <Text className="text-white text-xs font-bold mb-1">
+      {/* Savaşçılar */}
+      <View className="flex-row px-2 pt-3 pb-1 items-end justify-between">
+        {/* Saldıran */}
+        <View className="flex-1 items-center">
+          <Text className="text-blue-300 text-xs font-bold mb-1 uppercase tracking-wide">
             {attackerPlayer?.profiles?.username ?? "Saldıran"}
             {isAttacker ? " (Sen)" : ""}
           </Text>
-          <Text className="text-white">{"⚔".repeat(Math.max(0, battleState.attackerSoldiers))}</Text>
-          <Text className="text-slate-400 text-xs">{battleState.attackerSoldiers} hak</Text>
+          <View
+            className={`rounded-xl p-1 ${
+              battleState.phase === "attacker_turn" ? "bg-blue-900 border border-blue-400" : "bg-slate-800"
+            }`}
+          >
+            <CrusaderSprite
+              animation={attackerAnim}
+              flipped={false}
+              size={100}
+              onComplete={() => {
+                if (attackerAnim !== "idle" && attackerAnim !== "death") {
+                  setAttackerAnim("idle");
+                }
+              }}
+            />
+          </View>
+          <HPBar current={battleState.attackerSoldiers} max={3} color="blue" label="hak" />
         </View>
 
-        <View className="items-center justify-center">
-          <Text className="text-slate-400 text-2xl">⚡</Text>
+        {/* VS */}
+        <View className="items-center px-2 pb-4">
+          <Text className="text-slate-500 text-2xl font-black">VS</Text>
         </View>
 
-        <View
-          className={`flex-1 rounded-xl p-3 ${
-            battleState.phase === "defender_turn"
-              ? "bg-red-700 border-2 border-red-300"
-              : "bg-slate-800"
-          }`}
-        >
-          <Text className="text-white text-xs font-bold mb-1">
+        {/* Savunan */}
+        <View className="flex-1 items-center">
+          <Text className="text-red-300 text-xs font-bold mb-1 uppercase tracking-wide">
             {defenderPlayer?.profiles?.username ?? "Savunan"}
             {isDefender ? " (Sen)" : ""}
           </Text>
-          <Text className="text-white">{"🛡".repeat(Math.max(0, battleState.defenderSoldiers))}</Text>
-          <Text className="text-slate-400 text-xs">{battleState.defenderSoldiers} asker</Text>
+          <View
+            className={`rounded-xl p-1 ${
+              battleState.phase === "defender_turn" ? "bg-red-900 border border-red-400" : "bg-slate-800"
+            }`}
+          >
+            <CrusaderSprite
+              animation={defenderAnim}
+              flipped={true}
+              size={100}
+              onComplete={() => {
+                if (defenderAnim !== "idle" && defenderAnim !== "death") {
+                  setDefenderAnim("idle");
+                }
+              }}
+            />
+          </View>
+          <HPBar current={battleState.defenderSoldiers} max={initialDefenderSoldiers.current} color="red" label="asker" />
         </View>
       </View>
 
       {/* Sonuç mesajı */}
       {resultMessage && (
-        <View className="mx-4 mb-4 bg-slate-800 rounded-xl p-4">
-          <Text className="text-white text-center text-lg font-bold">{resultMessage}</Text>
+        <View className="mx-4 mb-2 bg-amber-900 border border-amber-500 rounded-xl p-3">
+          <Text className="text-amber-200 text-center text-base font-bold">{resultMessage}</Text>
         </View>
       )}
 
@@ -272,7 +294,7 @@ export default function BattleScreen() {
           {isMyTurn ? (
             <QuestionCard question={currentQuestion} onAnswer={handleAnswer} />
           ) : (
-            <View className="items-center px-4">
+            <View className="items-center px-4 py-6">
               <Text className="text-slate-400 text-base text-center">
                 {battleState.phase === "attacker_turn"
                   ? `${attackerPlayer?.profiles?.username ?? "Saldıran"} soruyu cevaplıyor...`
@@ -282,6 +304,21 @@ export default function BattleScreen() {
           )}
         </View>
       )}
+    </View>
+  );
+}
+
+function HPBar({ current, max, color, label }: { current: number; max: number; color: "blue" | "red"; label: string }) {
+  const pct = max > 0 ? Math.max(0, current / max) : 0;
+  const barColor = color === "blue" ? "bg-blue-500" : "bg-red-500";
+  return (
+    <View className="w-full mt-2 px-1">
+      <View className="h-2 bg-slate-700 rounded-full overflow-hidden">
+        <View className={`h-full rounded-full ${barColor}`} style={{ width: `${pct * 100}%` }} />
+      </View>
+      <Text className="text-slate-400 text-xs text-center mt-1">
+        {current} {label}
+      </Text>
     </View>
   );
 }
