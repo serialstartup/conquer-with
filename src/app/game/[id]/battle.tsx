@@ -3,12 +3,11 @@ import { View, Text, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
-import { useGameState } from "@/hooks/useGameState";
 import { QuestionCard } from "@/components/QuestionCard";
 import { CrusaderSprite } from "@/components/CrusaderSprite";
 import questions from "@/data/questions.json";
 import provinces from "@/data/provinces.json";
-import type { Question, Province } from "@/types/game";
+import type { Question, Province, GameState } from "@/types/game";
 
 const allQuestions = questions as Question[];
 const provinceData = provinces as Province[];
@@ -38,7 +37,7 @@ export default function BattleScreen() {
   const { id: roomId, province: provinceParam } = useLocalSearchParams<{ id: string; province: string }>();
   const { user } = useAuth();
   const router = useRouter();
-  const { gameState, updateGameState } = useGameState(roomId!);
+  const gsRef = useRef<GameState | null>(null);
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
   const [battleState, setBattleState] = useState<BattleState | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
@@ -47,18 +46,13 @@ export default function BattleScreen() {
   const [attackerAnim, setAttackerAnim] = useState<SpriteAnim>("idle");
   const [defenderAnim, setDefenderAnim] = useState<SpriteAnim>("idle");
   const initialDefenderSoldiers = useRef<number>(1);
-  const battleInitialized = useRef(false);
 
   const provinceId = parseInt(provinceParam ?? "0", 10);
   const provinceInfo = provinceData.find((p) => p.id === provinceId);
 
-  // gameState dependency: initialize savaşı ancak gameState yüklendiğinde yap.
-  // Stale closure'u önlemek için gameState'i parametre olarak geç.
   useEffect(() => {
-    if (!gameState || battleInitialized.current) return;
-    battleInitialized.current = true;
-    loadPlayersAndInit(gameState);
-  }, [gameState, roomId]);
+    loadPlayersAndInit();
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -78,20 +72,23 @@ export default function BattleScreen() {
     return () => { supabase.removeChannel(channel); };
   }, [roomId, provinceId]);
 
-  async function loadPlayersAndInit(gs: typeof gameState) {
-    if (!gs) return;
+  async function loadPlayersAndInit() {
+    const [{ data: gsData }, { data: playersData }] = await Promise.all([
+      supabase.from("game_states").select("*").eq("room_id", roomId).single(),
+      supabase.from("room_players")
+        .select("player_id, seat, main_province_id, profiles(username)")
+        .eq("room_id", roomId)
+        .order("seat"),
+    ]);
 
-    const { data } = await supabase
-      .from("room_players")
-      .select("player_id, seat, main_province_id, profiles(username)")
-      .eq("room_id", roomId)
-      .order("seat");
-
-    if (!data) {
+    if (!gsData || !playersData) {
       setLoadingBattle(false);
       return;
     }
-    setPlayers(data as unknown as RoomPlayer[]);
+
+    const gs = gsData as GameState;
+    gsRef.current = gs;
+    setPlayers(playersData as unknown as RoomPlayer[]);
 
     const attackerId = gs.current_turn;
     const defenderState = gs.provinces[String(provinceId)];
@@ -131,7 +128,7 @@ export default function BattleScreen() {
   }, [battleState?.phase]);
 
   async function handleAnswer(correct: boolean) {
-    if (!battleState || !gameState || !user) return;
+    if (!battleState || !user) return;
 
     const isAttacker = user.id === battleState.attackerId;
     const isDefender = user.id === battleState.defenderId;
@@ -178,29 +175,34 @@ export default function BattleScreen() {
   }
 
   async function finishBattle(state: BattleState) {
-    if (!gameState) return;
-    const updatedProvinces = { ...gameState.provinces };
+    const gs = gsRef.current;
+    if (!gs) return;
+
+    const updatedProvinces = { ...gs.provinces };
 
     if (state.winnerId === state.attackerId) {
       updatedProvinces[String(state.provinceId)] = {
         owner_id: state.attackerId,
         soldiers: 1,
-        castle_level: gameState.provinces[String(state.provinceId)]?.castle_level ?? 0,
+        castle_level: gs.provinces[String(state.provinceId)]?.castle_level ?? 0,
       };
       setResultMessage("Zafer! İl fethedildi!");
     } else {
       updatedProvinces[String(state.provinceId)] = {
-        ...gameState.provinces[String(state.provinceId)],
+        ...gs.provinces[String(state.provinceId)],
         soldiers: Math.max(1, state.defenderSoldiers),
       };
       setResultMessage("Savunma başarılı! İl korundu.");
     }
 
-    const currentIndex = players.findIndex((p) => p.player_id === gameState.current_turn);
+    const currentIndex = players.findIndex((p) => p.player_id === gs.current_turn);
     const nextIndex = (currentIndex + 1) % players.length;
-    const nextTurn = players[nextIndex]?.player_id ?? gameState.current_turn;
+    const nextTurn = players[nextIndex]?.player_id ?? gs.current_turn;
 
-    await updateGameState({ provinces: updatedProvinces, current_turn: nextTurn });
+    await supabase
+      .from("game_states")
+      .update({ provinces: updatedProvinces, current_turn: nextTurn, updated_at: new Date().toISOString() })
+      .eq("room_id", roomId);
 
     setTimeout(() => { router.replace(`/game/${roomId}`); }, 2000);
   }
