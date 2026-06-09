@@ -4,7 +4,7 @@ import type { Question } from "@/types/game";
 
 type Props = {
   question: Question;
-  onAnswer: (correct: boolean) => void;
+  onAnswer: (correct: boolean, selectedIndex: number) => void;
   disabled?: boolean;
   timeLimit?: number; // saniye, ileride kullanılacak
 };
@@ -19,7 +19,7 @@ export function QuestionCard({ question, onAnswer, disabled = false }: Props) {
     setAnswered(true);
     const isCorrect = index === question.correct_index;
     // 800ms sonra sonucu ilet (kullanıcının seçimini görmesi için)
-    setTimeout(() => onAnswer(isCorrect), 800);
+    setTimeout(() => onAnswer(isCorrect, index), 800);
   }
 
   function getOptionStyle(index: number) {
