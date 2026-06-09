@@ -1,7 +1,9 @@
 // src/components/TurkeyMap.tsx
 import React, { useState } from 'react';
 import { Dimensions, View } from 'react-native';
-import Svg, { Path, Text as SvgText, Image as SvgImage } from 'react-native-svg';
+import Svg, { Path, Text as SvgText, G, Rect } from 'react-native-svg';
+
+const CASTLE_COLOR = "#F59E0B";
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -163,13 +165,16 @@ export function TurkeyMap({
                     }}
                   />
                   {showIcons && owned && castlePlayer && (
-                    <SvgImage
-                      href={require('../../assets/icons/castle.png')}
-                      x={cx - 8}
-                      y={cy - 8}
-                      width={16}
-                      height={16}
-                    />
+                    <G transform={`translate(${cx}, ${cy})`}>
+                      <Rect x={-7} y={-5} width={5} height={9} fill={CASTLE_COLOR} />
+                      <Rect x={2}  y={-5} width={5} height={9} fill={CASTLE_COLOR} />
+                      <Rect x={-4} y={-1} width={8} height={5} fill={CASTLE_COLOR} />
+                      <Rect x={-2} y={1}  width={4} height={3} fill="#0f172a"       />
+                      <Rect x={-7} y={-7} width={2} height={2} fill={CASTLE_COLOR} />
+                      <Rect x={-4} y={-7} width={2} height={2} fill={CASTLE_COLOR} />
+                      <Rect x={2}  y={-7} width={2} height={2} fill={CASTLE_COLOR} />
+                      <Rect x={5}  y={-7} width={2} height={2} fill={CASTLE_COLOR} />
+                    </G>
                   )}
                   {showIcons && owned && !castlePlayer && soldiers > 0 && (
                     <SvgText
