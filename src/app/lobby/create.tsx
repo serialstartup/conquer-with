@@ -14,36 +14,42 @@ export default function CreateRoom() {
   }
 
   return (
-    <View className="flex-1 bg-slate-900 px-8 pt-16">
-      <TouchableOpacity onPress={() => router.back()} className="mb-8">
-        <Text className="text-slate-400 text-base">← Geri</Text>
-      </TouchableOpacity>
-
-      <Text className="text-white text-3xl font-bold mb-2">Oda Oluştur</Text>
-      <Text className="text-slate-400 mb-10">Arkadaşlarını davet et</Text>
-
-      <Text className="text-white font-semibold mb-3">Oyuncu Sayısı</Text>
-      <View className="flex-row gap-3 mb-10">
-        {([2, 3, 4] as const).map((n) => (
-          <TouchableOpacity
-            key={n}
-            className={`flex-1 py-3 rounded-xl items-center ${maxPlayers === n ? "bg-blue-600" : "bg-slate-700"}`}
-            onPress={() => setMaxPlayers(n)}
-          >
-            <Text className="text-white font-bold text-lg">{n}</Text>
-          </TouchableOpacity>
-        ))}
+    <View className="flex-1 flex-row bg-slate-900">
+      <View className="border-r border-slate-700 bg-slate-800/40 justify-center px-8" style={{ flex: 2 }}>
+        <TouchableOpacity onPress={() => router.back()} className="mb-6">
+          <Text className="text-slate-400 text-base">← Geri</Text>
+        </TouchableOpacity>
+        <Text className="text-amber-400 text-3xl font-bold mb-2">Oda Oluştur</Text>
+        <Text className="text-slate-400 text-sm">Kaç oyuncuyla oynayacaksın?</Text>
       </View>
-
-      {error && <Text className="text-red-400 mb-4 text-center">{error}</Text>}
-
-      <TouchableOpacity
-        className="bg-blue-600 rounded-xl py-4 items-center"
-        onPress={handleCreate}
-        disabled={loading}
-      >
-        {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-lg font-bold">Oda Oluştur</Text>}
-      </TouchableOpacity>
+      <View className="justify-center px-8" style={{ flex: 3 }}>
+        <Text className="text-white font-semibold mb-3">Oyuncu Sayısı</Text>
+        <View className="flex-row gap-3 mb-8">
+          {([2, 3, 4] as const).map((n) => (
+            <TouchableOpacity
+              key={n}
+              className={`flex-1 py-3 rounded-xl items-center ${
+                maxPlayers === n ? "bg-amber-700 border border-amber-500" : "bg-slate-700"
+              }`}
+              onPress={() => setMaxPlayers(n)}
+            >
+              <Text className="text-white font-bold text-lg">{n}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {error && <Text className="text-red-400 mb-4 text-center">{error}</Text>}
+        <TouchableOpacity
+          className="bg-amber-700 rounded-xl py-4 items-center"
+          onPress={handleCreate}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-white text-lg font-bold">Odayı Oluştur</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
