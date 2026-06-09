@@ -15,7 +15,7 @@ type PlayerResult = {
 };
 
 const SEAT_COLORS = [
-  "bg-blue-600", "bg-red-600", "bg-green-600", "bg-yellow-600",
+  "bg-blue-800", "bg-red-800", "bg-green-800", "bg-yellow-800",
 ] as const;
 
 export default function ResultsScreen() {

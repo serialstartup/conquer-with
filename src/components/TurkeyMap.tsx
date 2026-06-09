@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import { Dimensions, View } from 'react-native';
 import Svg, { Path, Text as SvgText, G, Rect } from 'react-native-svg';
-
-const CASTLE_COLOR = "#F59E0B";
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -16,9 +14,11 @@ import type { Province, Provinces } from '@/types/game';
 
 const VIEWBOX_W = 800;
 const VIEWBOX_H = 480;
-const PLAYER_COLORS = ['#2563EB', '#DC2626', '#16A34A', '#CA8A04'];
-const EMPTY_COLOR = '#334155';
-const BORDER_COLOR = '#FFFFFF';
+const PLAYER_COLORS = ['#1e40af', '#991b1b', '#166534', '#854d0e'];
+const EMPTY_COLOR = '#1e293b';
+const BORDER_COLOR = '#ffffff60';
+const CASTLE_COLOR = '#F59E0B';
+const CASTLE_STROKE = '#F59E0B';
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 const ICON_ZOOM_THRESHOLD = 1.8;
@@ -157,7 +157,8 @@ export function TurkeyMap({
                   <Path
                     d={data.path}
                     fill={fill}
-                    stroke={BORDER_COLOR}
+                    fillOpacity={isMyTurn ? 1 : 0.65}
+                    stroke={castlePlayer ? CASTLE_STROKE : BORDER_COLOR}
                     strokeWidth={castlePlayer ? 2.5 : 1}
                     strokeOpacity={castlePlayer ? 1 : 0.7}
                     onPress={() => {
