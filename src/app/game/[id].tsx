@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, Modal, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
@@ -32,6 +32,7 @@ export default function GameScreen() {
   const { gameState, loading, updateGameState } = useGameState(roomId!);
   const [players, setPlayers] = useState<RoomPlayer[]>([]);
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(20);
+  const navigatedToResultsRef = useRef(false);
   const [selectedProvince, setSelectedProvince] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [actionType, setActionType] = useState<ActionType>(null);
@@ -84,10 +85,11 @@ export default function GameScreen() {
   // Ana kale düşüp düşmediğini kontrol et
   useEffect(() => {
     if (!gameState || !players.length) return;
+    if (navigatedToResultsRef.current) return;
     for (const player of players) {
       const mainProvince = gameState.provinces[String(player.main_province_id)];
       if (mainProvince && mainProvince.owner_id !== player.player_id && mainProvince.owner_id !== null) {
-        // Ana kale el değiştirdi — oyun bitti
+        navigatedToResultsRef.current = true;
         supabase.from("game_states").update({ phase: "finished" }).eq("room_id", roomId);
         router.replace(`/results/${roomId}`);
         return;
@@ -110,12 +112,21 @@ export default function GameScreen() {
       .select("id, seat, player_id, main_province_id, profiles(username)")
       .eq("room_id", roomId)
       .order("seat");
-    if (data) setPlayers(data as unknown as RoomPlayer[]);
+    if (data) setPlayers(data.map((p) => ({
+      id: String(p.id),
+      seat: Number(p.seat),
+      player_id: String(p.player_id),
+      main_province_id: Number(p.main_province_id),
+      profiles: Array.isArray(p.profiles)
+        ? ((p.profiles[0] as { username: string }) ?? null)
+        : (p.profiles as { username: string } | null),
+    })));
   }
 
   function getRandomQuestion(difficulty: 1 | 2 | 3): Question {
     const filtered = allQuestions.filter((q) => q.difficulty === difficulty);
-    return filtered[Math.floor(Math.random() * filtered.length)];
+    const pool = filtered.length > 0 ? filtered : allQuestions;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   function handleProvincePress(provinceId: number) {

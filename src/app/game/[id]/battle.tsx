@@ -101,7 +101,8 @@ export default function BattleScreen() {
   function pickQuestion(): Question {
     const difficulty = (provinceInfo?.difficulty ?? 1) as 1 | 2 | 3;
     const filtered = allQuestions.filter((q) => q.difficulty === difficulty);
-    return filtered[Math.floor(Math.random() * filtered.length)];
+    const pool = filtered.length > 0 ? filtered : allQuestions;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   async function loadPlayersAndInit() {
@@ -117,7 +118,14 @@ export default function BattleScreen() {
 
     const gs = gsData as GameState;
     gsRef.current = gs;
-    setPlayers(playersData as unknown as RoomPlayer[]);
+    setPlayers(playersData.map((p) => ({
+      player_id: String(p.player_id),
+      seat: Number(p.seat),
+      main_province_id: Number(p.main_province_id),
+      profiles: Array.isArray(p.profiles)
+        ? ((p.profiles[0] as { username: string }) ?? null)
+        : (p.profiles as { username: string } | null),
+    })));
 
     const isAttacker = gs.current_turn === user?.id;
 
@@ -222,11 +230,10 @@ export default function BattleScreen() {
     }
 
     setBattleState(updated);
-    await publishBattleState(updated);
-
     if (updated.phase === "finished") {
-      await finishBattle(updated);
+      await finishBattle(updated);      // önce DB'yi güncelle
     }
+    await publishBattleState(updated); // sonra pasif oyuncuya bildir
   }
 
   async function finishBattle(state: BattleState) {
