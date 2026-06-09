@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Share } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Share, ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +20,8 @@ type RoomData = {
   time_limit_minutes: number;
 };
 
+const SEAT_COLORS = ["bg-blue-600", "bg-red-600", "bg-green-600", "bg-yellow-600"] as const;
+
 export default function WaitingRoom() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -33,7 +35,6 @@ export default function WaitingRoom() {
     loadRoom();
     loadPlayers();
 
-    // Realtime: yeni oyuncu katılınca güncelle
     const channel = supabase
       .channel(`room:${id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "room_players", filter: `room_id=eq.${id}` }, () => {
@@ -66,14 +67,20 @@ export default function WaitingRoom() {
       .select("id, seat, player_id, profiles(username)")
       .eq("room_id", id)
       .order("seat");
-    if (data) setPlayers(data as unknown as RoomPlayer[]);
+    if (data) setPlayers(data.map((p) => ({
+      id: String(p.id),
+      seat: Number(p.seat),
+      player_id: String(p.player_id),
+      profiles: Array.isArray(p.profiles)
+        ? ((p.profiles[0] as { username: string }) ?? null)
+        : (p.profiles as { username: string } | null),
+    })));
   }
 
   async function startGame() {
     if (!room || !user || starting) return;
     setStarting(true);
     try {
-      // Conditional update: sadece waiting olan odayı starting yap
       const { data: updated, error: updateError } = await supabase
         .from("rooms")
         .update({ status: "starting" })
@@ -83,12 +90,10 @@ export default function WaitingRoom() {
         .maybeSingle();
 
       if (updateError || !updated) {
-        // Başka bir host zaten başlattı veya oda artık waiting değil
         setStarting(false);
         return;
       }
 
-      // Fresh players listesi al
       const { data: freshPlayers } = await supabase
         .from("room_players")
         .select("id, seat, player_id")
@@ -101,7 +106,6 @@ export default function WaitingRoom() {
         return;
       }
 
-      // Rastgele il ataması
       const availableIds = Array.from({ length: 81 }, (_, i) => i).sort(() => Math.random() - 0.5);
 
       for (let i = 0; i < freshPlayers.length; i++) {
@@ -111,7 +115,6 @@ export default function WaitingRoom() {
           .eq("id", freshPlayers[i].id);
       }
 
-      // Başlangıç provinces oluştur
       const provinces: Record<string, { owner_id: string | null; soldiers: number; castle_level: number }> = {};
       for (let i = 0; i < 81; i++) {
         provinces[String(i)] = { owner_id: null, soldiers: 0, castle_level: 0 };
@@ -124,7 +127,6 @@ export default function WaitingRoom() {
         };
       }
 
-      // game_states insert — room_id UNIQUE constraint var, çakışma olursa error döner
       const { error: gsError } = await supabase.from("game_states").insert({
         room_id: room.id,
         current_turn: freshPlayers[0].player_id,
@@ -134,19 +136,15 @@ export default function WaitingRoom() {
       });
 
       if (gsError) {
-        // game_states zaten var — unique constraint ihlali
         await supabase.from("rooms").update({ status: "playing" }).eq("id", room.id);
         router.replace(`/game/${room.id}`);
         return;
       }
 
-      // Odayı playing yap
       await supabase.from("rooms").update({ status: "playing" }).eq("id", room.id);
-      // Realtime event tüm oyuncuları yönlendirecek, ama fallback olarak host'u da yönlendir
       router.replace(`/game/${room.id}`);
-    } catch (e) {
+    } catch {
       Alert.alert("Hata", "Oyun başlatılamadı");
-      // Odayı waiting'e geri al
       await supabase.from("rooms").update({ status: "waiting" }).eq("id", room.id);
       setStarting(false);
     }
@@ -164,57 +162,62 @@ export default function WaitingRoom() {
   const canStart = players.length >= 2 && isHost;
 
   return (
-    <View className="flex-1 bg-slate-900 px-6 pt-16">
-      <Text className="text-white text-3xl font-bold mb-1">Bekleme Odası</Text>
-
-      <TouchableOpacity
-        onPress={() => Share.share({ message: `Bil ve Fethet - Oda kodu: ${room.code}` })}
-        className="flex-row items-center mb-8 mt-2"
-      >
-        <Text className="text-slate-400 mr-2">Oda Kodu:</Text>
-        <Text className="text-blue-400 text-2xl font-bold tracking-widest">{room.code}</Text>
-        <Text className="text-slate-500 ml-2 text-sm">Paylaş</Text>
-      </TouchableOpacity>
-
-      <Text className="text-slate-400 text-sm mb-3">
-        {players.length} / {room.max_players} oyuncu
-      </Text>
-
-      {players.map((p) => (
-        <View key={p.id} className="flex-row items-center bg-slate-800 rounded-xl px-4 py-3 mb-2">
-          <View className="w-8 h-8 rounded-full bg-blue-600 items-center justify-center mr-3">
-            <Text className="text-white font-bold">{p.seat}</Text>
-          </View>
-          <Text className="text-white font-semibold flex-1">
-            {p.profiles?.username ?? "Bağlanıyor..."}
-          </Text>
-          {p.player_id === room.host_id && (
-            <Text className="text-yellow-400 text-xs">Host</Text>
-          )}
-        </View>
-      ))}
-
-      <View className="flex-1" />
-
-      {!isHost && (
-        <Text className="text-slate-500 text-center mb-4">Host oyunu başlatmasını bekle...</Text>
-      )}
-
-      {isHost && (
-        <TouchableOpacity
-          className={`rounded-xl py-4 items-center mb-8 ${canStart ? "bg-blue-600" : "bg-slate-700"}`}
-          onPress={startGame}
-          disabled={!canStart || starting}
-        >
-          {starting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className={`text-lg font-bold ${canStart ? "text-white" : "text-slate-500"}`}>
-              {players.length < 2 ? `En az 2 oyuncu gerekli` : "Oyunu Başlat"}
-            </Text>
-          )}
+    <View className="flex-1 flex-row bg-slate-900">
+      <View className="border-r border-slate-700 bg-slate-800/40 justify-center px-8" style={{ flex: 2 }}>
+        <TouchableOpacity onPress={() => router.back()} className="mb-6">
+          <Text className="text-slate-400 text-base">← Geri</Text>
         </TouchableOpacity>
-      )}
+        <Text className="text-amber-400 text-3xl font-bold mb-1">Bekleme Odası</Text>
+        <TouchableOpacity
+          onPress={() => Share.share({ message: `Bil ve Fethet - Oda kodu: ${room.code}` })}
+          className="mt-4"
+        >
+          <Text className="text-slate-400 text-xs mb-1">Oda Kodu</Text>
+          <Text className="text-blue-400 text-2xl font-bold tracking-widest">{room.code}</Text>
+          <Text className="text-slate-500 text-xs mt-1">Paylaşmak için dokun</Text>
+        </TouchableOpacity>
+        <Text className="text-slate-400 text-sm mt-6">
+          {players.length} / {room.max_players} oyuncu
+        </Text>
+      </View>
+      <View className="py-6 px-6" style={{ flex: 3 }}>
+        <ScrollView className="flex-1 mb-4">
+          {players.map((p) => {
+            const seatColor = SEAT_COLORS[(p.seat - 1) % SEAT_COLORS.length];
+            return (
+              <View key={p.id} className="flex-row items-center bg-slate-800 rounded-xl px-4 py-3 mb-2">
+                <View className={`w-8 h-8 rounded-full ${seatColor} items-center justify-center mr-3`}>
+                  <Text className="text-white font-bold">{p.seat}</Text>
+                </View>
+                <Text className="text-white font-semibold flex-1">
+                  {p.profiles?.username ?? "Bağlanıyor..."}
+                </Text>
+                {p.player_id === room.host_id && (
+                  <Text className="text-yellow-400 text-xs">Host</Text>
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
+        {!isHost && (
+          <Text className="text-slate-500 text-center mb-3">Host oyunu başlatmasını bekle...</Text>
+        )}
+        {isHost && (
+          <TouchableOpacity
+            className={`rounded-xl py-4 items-center ${canStart ? "bg-amber-700" : "bg-slate-700"}`}
+            onPress={startGame}
+            disabled={!canStart || starting}
+          >
+            {starting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text className={`text-lg font-bold ${canStart ? "text-white" : "text-slate-500"}`}>
+                {players.length < 2 ? "En az 2 oyuncu gerekli" : "Oyunu Başlat"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
