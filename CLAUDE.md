@@ -13,6 +13,13 @@ Türkiye haritasında 2-4 oyunculu gerçek zamanlı online strateji + trivia oyu
 
 ---
 
+- Detaylı bilgiler için obsidian dosyasını oku:
+  - '/Users/oguztasci/Desktop/secondBrain/application-ideas/09-bil-ve-fethet'
+  - '/Users/oguztasci/Desktop/secondBrain/application-ideas/09-bil-ve-fethet/[en son tarih]'
+
+  Whenever we change something or add new features, we will update our obsidian folder in:
+  - '/Users/oguztasci/Desktop/secondBrain//application-ideas/09-bil-ve-fethet/[en son tarih]'
+
 ## Oturum Notu Protokolü
 
 Her kod oturumunun sonunda Obsidian'a not kaydet:
@@ -37,14 +44,14 @@ Migration dosyaları: `supabase/migrations/`
 
 ### Tablolar
 
-| Tablo | Amaç |
-|---|---|
-| `profiles` | Kullanıcı adı, is_guest, games_played |
-| `rooms` | Oyun odası (6 haneli kod, max_players, status) |
-| `room_players` | Oyuncu → oda ilişkisi, seat, main_province_id |
-| `game_states` | Aktif oyun durumu (provinces JSONB, mevcut tur) |
-| `game_events` | Savaş sync event log |
-| `questions` | Seed tablo (kullanılmıyor; sorular JSON'dan yükleniyor) |
+| Tablo          | Amaç                                                    |
+| -------------- | ------------------------------------------------------- |
+| `profiles`     | Kullanıcı adı, is_guest, games_played                   |
+| `rooms`        | Oyun odası (6 haneli kod, max_players, status)          |
+| `room_players` | Oyuncu → oda ilişkisi, seat, main_province_id           |
+| `game_states`  | Aktif oyun durumu (provinces JSONB, mevcut tur)         |
+| `game_events`  | Savaş sync event log                                    |
+| `questions`    | Seed tablo (kullanılmıyor; sorular JSON'dan yükleniyor) |
 
 Realtime: `game_states` ve `game_events` tablolarında aktif.
 
@@ -52,14 +59,14 @@ Realtime: `game_states` ve `game_events` tablolarında aktif.
 
 ## Teknik Stack
 
-| Katman | Teknoloji |
-|---|---|
-| Framework | Expo 56 + React Native 0.85 |
-| Routing | Expo Router (file-based) |
-| Stil | NativeWind v4 + Tailwind CSS |
-| Backend | Supabase (Auth, Realtime, PostgreSQL) |
-| Dil | TypeScript |
-| Paket yönetici | npm |
+| Katman         | Teknoloji                             |
+| -------------- | ------------------------------------- |
+| Framework      | Expo 56 + React Native 0.85           |
+| Routing        | Expo Router (file-based)              |
+| Stil           | NativeWind v4 + Tailwind CSS          |
+| Backend        | Supabase (Auth, Realtime, PostgreSQL) |
+| Dil            | TypeScript                            |
+| Paket yönetici | npm                                   |
 
 > **Önemli:** Expo API'si her versiyonda değişiyor. Kod yazmadan önce https://docs.expo.dev/versions/v56.0.0/ adresini oku.
 
@@ -137,14 +144,14 @@ Tüm fazlar tamamlandı (Faz 0-7, 11 commit):
 
 **Bilinen eksikler / backlog:**
 
-| Öncelik | İş |
-|---|---|
-| Orta | `example/` dizini temizle (TS hataları) |
-| Düşük | SVG Türkiye haritası (V2) |
-| Düşük | Sorular Supabase DB'ye taşı (V2) |
-| Düşük | Özel yetenek sistemi (kart çal, joker) |
-| Düşük | Liderboard + arkadaş sistemi |
-| Düşük | Futbol soru kategorisi |
+| Öncelik | İş                                      |
+| ------- | --------------------------------------- |
+| Orta    | `example/` dizini temizle (TS hataları) |
+| Düşük   | SVG Türkiye haritası (V2)               |
+| Düşük   | Sorular Supabase DB'ye taşı (V2)        |
+| Düşük   | Özel yetenek sistemi (kart çal, joker)  |
+| Düşük   | Liderboard + arkadaş sistemi            |
+| Düşük   | Futbol soru kategorisi                  |
 
 ---
 
@@ -157,6 +164,7 @@ npx expo start --android
 ```
 
 Ortam değişkenleri için `.env` dosyası gerekli (`.env.example`'a bak):
+
 ```
 EXPO_PUBLIC_SUPABASE_URL=...
 EXPO_PUBLIC_SUPABASE_ANON_KEY=...

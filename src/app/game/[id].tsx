@@ -233,7 +233,7 @@ export default function GameScreen() {
         <TurkeyMap
           provinces={gameState.provinces}
           provinceData={provinceData}
-          players={players.map(p => ({ id: p.player_id, seat: p.seat, main_province_id: p.main_province_id }))}
+          players={players.map(p => ({ id: p.player_id, seat: p.seat, main_province_id: p.main_province_id, username: p.profiles?.username ?? '?' }))}
           currentUserId={user?.id ?? ''}
           currentTurnId={gameState.current_turn}
           onProvincePress={handleProvincePress}

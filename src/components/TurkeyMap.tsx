@@ -1,7 +1,6 @@
-// src/components/TurkeyMap.tsx
-import React, { useState } from 'react';
-import { Dimensions, View } from 'react-native';
-import Svg, { Path, Text as SvgText, G, Rect } from 'react-native-svg';
+import React, { useState, useEffect } from 'react';
+import { Dimensions, View, Text } from 'react-native';
+import Svg, { Path, Text as SvgText, Image as SvgImage } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -17,7 +16,6 @@ const VIEWBOX_H = 480;
 const PLAYER_COLORS = ['#1e40af', '#991b1b', '#166534', '#854d0e'];
 const EMPTY_COLOR = '#1e293b';
 const BORDER_COLOR = '#ffffff60';
-const CASTLE_COLOR = '#F59E0B';
 const CASTLE_STROKE = '#F59E0B';
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
@@ -27,6 +25,7 @@ type PlayerInfo = {
   id: string;
   seat: number;
   main_province_id: number;
+  username: string;
 };
 
 type Props = {
@@ -54,6 +53,13 @@ export function TurkeyMap({
   const svgH = Math.round(screenW * VIEWBOX_H / VIEWBOX_W);
   const isMyTurn = currentUserId === currentTurnId;
   const [showIcons, setShowIcons] = useState(false);
+  const [selectedProvinceId, setSelectedProvinceId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (selectedProvinceId === null) return;
+    const t = setTimeout(() => setSelectedProvinceId(null), 3000);
+    return () => clearTimeout(t);
+  }, [selectedProvinceId]);
 
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -133,6 +139,12 @@ export function TurkeyMap({
     return provinces[String(provinceId)]?.soldiers ?? 0;
   }
 
+  const selectedInfo = selectedProvinceId !== null ? {
+    pData: provinceData.find(p => p.id === selectedProvinceId),
+    soldiers: getSoldiers(selectedProvinceId),
+    owner: players.find(p => p.id === provinces[String(selectedProvinceId)]?.owner_id),
+  } : null;
+
   return (
     <GestureDetector gesture={gesture}>
       <View style={{ flex: 1, overflow: 'hidden' }}>
@@ -151,31 +163,41 @@ export function TurkeyMap({
               const soldiers = getSoldiers(province.id);
               const owned = !!provinces[String(province.id)]?.owner_id;
               const [cx, cy] = data.centroid;
+              const isSelected = province.id === selectedProvinceId;
 
               return (
                 <React.Fragment key={province.id}>
                   <Path
                     d={data.path}
                     fill={fill}
-                    fillOpacity={isMyTurn ? 1 : 0.65}
-                    stroke={castlePlayer ? CASTLE_STROKE : BORDER_COLOR}
-                    strokeWidth={castlePlayer ? 2.5 : 1}
-                    strokeOpacity={castlePlayer ? 1 : 0.7}
+                    fillOpacity={
+                      selectedProvinceId !== null && !isSelected
+                        ? 0.35
+                        : isMyTurn ? 1 : 0.65
+                    }
+                    stroke={isSelected ? '#F59E0B' : castlePlayer ? CASTLE_STROKE : BORDER_COLOR}
+                    strokeWidth={isSelected ? 3 : castlePlayer ? 2.5 : 1}
+                    strokeOpacity={isSelected ? 1 : castlePlayer ? 1 : 0.7}
                     onPress={() => {
+                      if (isSelected) {
+                        setSelectedProvinceId(null);
+                        return;
+                      }
+                      setSelectedProvinceId(null);
                       if (!disabled && isMyTurn) onProvincePress(province.id);
+                    }}
+                    onLongPress={() => {
+                      if (!disabled) setSelectedProvinceId(province.id);
                     }}
                   />
                   {showIcons && owned && castlePlayer && (
-                    <G transform={`translate(${cx}, ${cy})`}>
-                      <Rect x={-7} y={-5} width={5} height={9} fill={CASTLE_COLOR} />
-                      <Rect x={2}  y={-5} width={5} height={9} fill={CASTLE_COLOR} />
-                      <Rect x={-4} y={-1} width={8} height={5} fill={CASTLE_COLOR} />
-                      <Rect x={-2} y={1}  width={4} height={3} fill="#0f172a"       />
-                      <Rect x={-7} y={-7} width={2} height={2} fill={CASTLE_COLOR} />
-                      <Rect x={-4} y={-7} width={2} height={2} fill={CASTLE_COLOR} />
-                      <Rect x={2}  y={-7} width={2} height={2} fill={CASTLE_COLOR} />
-                      <Rect x={5}  y={-7} width={2} height={2} fill={CASTLE_COLOR} />
-                    </G>
+                    <SvgImage
+                      href={require('../../assets/icons/castle.jpg')}
+                      x={cx - 8}
+                      y={cy - 8}
+                      width={16}
+                      height={16}
+                    />
                   )}
                   {showIcons && owned && !castlePlayer && soldiers > 0 && (
                     <SvgText
@@ -194,6 +216,14 @@ export function TurkeyMap({
             })}
           </Svg>
         </Animated.View>
+        {selectedInfo && (
+          <View className="absolute bottom-0 left-0 right-0 bg-slate-900/90 px-4 py-2 flex-row items-center justify-between">
+            <Text className="text-amber-400 font-bold text-sm">{selectedInfo.pData?.name ?? '—'}</Text>
+            <Text className="text-slate-400 text-xs">{selectedInfo.pData?.region}</Text>
+            <Text className="text-white text-xs">⚔ {selectedInfo.soldiers}</Text>
+            <Text className="text-slate-300 text-xs">{selectedInfo.owner?.username ?? 'Boş'}</Text>
+          </View>
+        )}
       </View>
     </GestureDetector>
   );
